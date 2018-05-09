@@ -1,11 +1,9 @@
 package main
 
 import (
-	"crypto/tls"
-	"errors"
+	"io/ioutil"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -14,9 +12,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"errors"
+	"crypto/tls"
 
-	"golang.org/x/net/context"
 	"gopkg.in/ini.v1"
+	"golang.org/x/net/context"
 )
 
 const defaultWaitRetryInterval = time.Second
@@ -51,10 +51,10 @@ var (
 	poll         bool
 	wg           sync.WaitGroup
 
-	envFlag           string
-	envSection        string
-	envHdrFlag        sliceVar
-	validateCert      bool
+	envFlag       	  string
+	envSection		  string
+	envHdrFlag		  sliceVar
+	validateCert	  bool
 	templatesFlag     sliceVar
 	templateDirsFlag  sliceVar
 	stdoutTailFlag    sliceVar
@@ -69,8 +69,6 @@ var (
 	waitTimeoutFlag   time.Duration
 	dependencyChan    chan struct{}
 	noOverwriteFlag   bool
-	eUID              int
-	eGID              int
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -131,11 +129,11 @@ func waitForDependencies() {
 					var tr = http.DefaultTransport
 					if !validateCert {
 						tr = &http.Transport{
-							TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+						 	TLSClientConfig: &tls.Config{InsecureSkipVerify : true},
 						}
 					}
 					client := &http.Client{
-						Timeout:   waitTimeoutFlag,
+						Timeout: waitTimeoutFlag,
 						Transport: tr,
 					}
 
@@ -227,7 +225,8 @@ Arguments:
 	println(`For more information, see https://github.com/jwilder/dockerize`)
 }
 
-func getINI(envFlag string, envHdrFlag []string) (iniFile []byte, err error) {
+
+func getINI( envFlag string, envHdrFlag []string ) (iniFile []byte, err error) {
 
 	// See if envFlag parses like an absolute URL, if so use http, otherwise treat as filename
 	url, urlERR := url.ParseRequestURI(envFlag)
@@ -238,16 +237,16 @@ func getINI(envFlag string, envHdrFlag []string) (iniFile []byte, err error) {
 		var client *http.Client
 		var tr = http.DefaultTransport
 		// Define redirect handler to disallow redirects
-		var redir = func(req *http.Request, via []*http.Request) error {
+		var redir = func (req *http.Request, via []*http.Request) error {
 			return errors.New("Redirects disallowed")
 		}
-
+	
 		if !validateCert {
 			tr = &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				TLSClientConfig: &tls.Config{InsecureSkipVerify : true},
 			}
 		}
-		client = &http.Client{Transport: tr, CheckRedirect: redir}
+		client = &http.Client{ Transport: tr, CheckRedirect: redir }
 		req, err = http.NewRequest("GET", envFlag, nil)
 		if err != nil {
 			// Weird problem with declaring client, bail
@@ -264,24 +263,24 @@ func getINI(envFlag string, envHdrFlag []string) (iniFile []byte, err error) {
 				if err != nil { // Could not read file, error out
 					return
 				}
-				hdr = string(hdrFile)
+				hdr=string(hdrFile)
 			}
 			parts := strings.Split(hdr, ":")
 			if len(parts) != 2 {
 				log.Fatalf("Bad env-headers argument: %s. expected \"headerName: headerValue\"", hdr)
 			}
-			req.Header.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+			req.Header.Add(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))	
 		}
 		resp, err = client.Do(req)
 		if err == nil && resp.StatusCode == 200 {
 			defer resp.Body.Close()
 			iniFile, err = ioutil.ReadAll(resp.Body)
 		} else if err == nil { // Request completed with unexpected HTTP status code, bail
-			err = errors.New(resp.Status)
+			err = errors.New( resp.Status)
 			return
 		}
 	} else {
-		iniFile, err = ioutil.ReadFile(envFlag)
+		iniFile, err = ioutil.ReadFile( envFlag)
 	}
 	return
 }
@@ -294,15 +293,13 @@ func main() {
 	flag.StringVar(&envSection, "env-section", "", "Optional section of INI file to use for loading env vars. Defaults to \"\"")
 	flag.Var(&envHdrFlag, "env-header", "Optional string or path to secrets file for http headers passed if -env is a URL")
 	flag.BoolVar(&validateCert, "validate-cert", true, "Verify SSL certs for https connections")
-	flag.IntVar(&eGID, "egid", -1, "Set the numeric group ID for the running program") // Check for -1 later to skip
-	flag.IntVar(&eUID, "euid", -1, "Set the numeric user id for the running program")
 	flag.Var(&templatesFlag, "template", "Template (/template:/dest). Can be passed multiple times. Does also support directories")
 	flag.BoolVar(&noOverwriteFlag, "no-overwrite", false, "Do not overwrite destination file if it already exists.")
 	flag.Var(&stdoutTailFlag, "stdout", "Tails a file to stdout. Can be passed multiple times")
 	flag.Var(&stderrTailFlag, "stderr", "Tails a file to stderr. Can be passed multiple times")
 	flag.StringVar(&delimsFlag, "delims", "", `template tag delimiters. default "{{":"}}" `)
 	flag.Var(&headersFlag, "wait-http-header", "HTTP headers, colon separated. e.g \"Accept-Encoding: gzip\". Can be passed multiple times")
-	flag.Var(&waitFlag, "wait", "Host (tcp/tcp4/tcp6/http/https/unix/file) to wait for before this container starts. Can be passed multiple times. e.g. tcp://db:5432")
+	flag.Var(&waitFlag, "wait", "Host (tcp/tcp4/tcp6/http/https/unix) to wait for before this container starts. Can be passed multiple times. e.g. tcp://db:5432")
 	flag.DurationVar(&waitTimeoutFlag, "timeout", 10*time.Second, "Host wait timeout")
 	flag.DurationVar(&waitRetryInterval, "wait-retry-interval", defaultWaitRetryInterval, "Duration to wait before retrying")
 
@@ -320,7 +317,7 @@ func main() {
 	}
 
 	if envFlag != "" {
-		iniFile, err := getINI(envFlag, envHdrFlag)
+		iniFile, err := getINI( envFlag, envHdrFlag)
 		if err != nil {
 			log.Fatalf("unreadable INI file %s: %s", envFlag, err)
 		}
@@ -333,7 +330,7 @@ func main() {
 		for k, v := range envHash {
 			if _, ok := os.LookupEnv(k); !ok {
 				// log.Printf("Setting %s to %s", k, v)
-				os.Setenv(k, v)
+				os.Setenv(k,v)
 			}
 		}
 	}
@@ -400,8 +397,6 @@ func main() {
 
 	if flag.NArg() > 0 {
 		wg.Add(1)
-		// Drop privs if passed the euid or egid params
-
 		go runCmd(ctx, cancel, flag.Arg(0), flag.Args()[1:]...)
 	}
 
